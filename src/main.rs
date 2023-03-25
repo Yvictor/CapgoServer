@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 
 mod update_info;
 use update_info::UpdateInfo;
+mod list_release;
+use list_release::list_releases;
+
 
 #[derive(Debug, Deserialize, Object)]
 struct AppInfos {
@@ -38,7 +41,7 @@ enum UpdateResponse {
     Error(Json<ErrorResponse>),
 }
 
-fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
+async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
     // Define the latest version for each platform
     // let latest_versions = vec![
     //     ("ios", "1.2.0"),
@@ -46,10 +49,22 @@ fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
     // ];
 
     // let platform_latest_version = latest_versions.iter().find(|(p, _)| p == &app_infos.platform);
-    let latest_version = "0.0.2";
+    let mut latest_version = String::from("0.0.1");
+    let mut url = String::from("https://github.com/Sinotrade/scone/releases/download/0.0.1s/yvictor.scone_0.0.1.zip");
+    let owner = "sinotrade";
+    let repo = "scone";
+    let releases = list_releases(owner, repo).await.ok().unwrap_or_default();
+    for release in releases {
+        println!("{} - {}", release.tag_name, release.name.unwrap_or_default());
+        if let Some(asset) = release.assets.first() {
+            // print!("{:?}", asset);
+            latest_version = release.tag_name.clone();
+            url = asset.browser_download_url.clone();
+        }
+    }
     Some(UpdateInfo {
         version: latest_version.to_string(),
-        url: "https://path_to_the_zip_file_of_the_code.com".to_string(),
+        url: url.to_string(),
     })
 }
 
@@ -70,7 +85,7 @@ impl Api {
         // _app_id: Path<String>,
         app_infos: Json<AppInfos>,
     ) -> Result<UpdateResponse> {
-        let update_info = get_update_info(&app_infos);
+        let update_info = get_update_info(&app_infos).await;
 
     
         match update_info {
