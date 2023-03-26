@@ -26,6 +26,7 @@ impl Api {
         match update_info {
             Some(info) => Ok(UpdateResponse::UpdateInfo(Json(info))),
             None => Ok(UpdateResponse::Error(Json(ErrorResponse {
+                message: "Error version not found".to_string(),
                 error: "No update available".to_string(),
             }))),
         }
