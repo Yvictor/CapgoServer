@@ -39,12 +39,14 @@ async fn main() -> Result<(), std::io::Error> {
     tracing_subscriber::fmt::init();
     let host = env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("PORT")
-        .unwrap_or_else(|_| "3000".to_string())
+        .unwrap_or_else(|_| "3333".to_string())
         .parse::<u16>()
         .expect("Invalid PORT value");
+    let domain =
+        env::var("DOMAIN").unwrap_or_else(|_| format!("http://127.0.0.1:{}", port).to_string());
 
     let api_service = OpenApiService::new(Api, "CapgoServer", "1.0")
-        .server(&format!("http://localhost:{}/api", port));
+        .server(&format!("{}/api", domain));
     let ui = api_service.swagger_ui();
     let app = Route::new().nest("/api", api_service).nest("/", ui);
 
