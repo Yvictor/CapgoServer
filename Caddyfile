@@ -1,0 +1,5 @@
+{$DOMAIN} {
+	tls "yvictor3141@gmail.com"
+	log
+	reverse_proxy localhost:{$PORT}
+}
