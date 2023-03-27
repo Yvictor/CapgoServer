@@ -4,6 +4,7 @@ use std::env;
 use tracing::info;
 use tracing_subscriber;
 use CapgoServer::api::live_update::{get_update_info, AppInfos, ErrorResponse, UpdateResponse};
+use CapgoServer::api::stats::{handle_stats_request, AppStats, StatsResponse};
 struct Api;
 
 #[OpenApi]
@@ -31,6 +32,10 @@ impl Api {
             }))),
         }
     }
+    #[oai(path = "/stats", method = "post")]
+    async fn stats_request(&self, app_stats: Json<AppStats>) -> Result<StatsResponse> {
+        handle_stats_request(&app_stats).await
+    }
 }
 
 #[tokio::main]
@@ -45,8 +50,8 @@ async fn main() -> Result<(), std::io::Error> {
     let domain =
         env::var("DOMAIN").unwrap_or_else(|_| format!("http://127.0.0.1:{}", port).to_string());
 
-    let api_service = OpenApiService::new(Api, "CapgoServer", "1.0")
-        .server(&format!("{}/api", domain));
+    let api_service =
+        OpenApiService::new(Api, "CapgoServer", "1.0").server(&format!("{}/api", domain));
     let ui = api_service.swagger_ui();
     let app = Route::new().nest("/api", api_service).nest("/", ui);
 

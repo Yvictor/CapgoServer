@@ -138,7 +138,7 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
     // ];
     // let platform_latest_version = latest_versions.iter().find(|(p, _)| p == &app_infos.platform);
     let split_app_id: Vec<&str> = app_infos.app_id.split(".").collect();
-    info!("appinfo: {:#?}", app_infos);
+    info!("appinfo: {:?}", app_infos); //info!("appinfo: {:#?}", app_infos);
     if let [owner, repo] = split_app_id.as_slice() {
         info!(owner, repo);
         let mut latest_version = String::from("0.0.1");
