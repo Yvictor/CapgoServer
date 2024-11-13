@@ -86,14 +86,16 @@ pub struct UpdateInfo {
     pub version: String,
     pub url: String,
     pub session_key: Option<String>,
+    pub checksum: Option<String>,
 }
 
 impl UpdateInfo {
-    pub fn new(version: &str, url: &str, session_key: Option<String>) -> Self {
+    pub fn new(version: &str, url: &str, session_key: Option<String>, checksum: Option<String>) -> Self {
         UpdateInfo {
             version: version.to_string(),
             url: url.to_string(),
-            session_key: session_key,
+            session_key,
+            checksum,
         }
     }
 }
@@ -139,50 +141,56 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
     // let platform_latest_version = latest_versions.iter().find(|(p, _)| p == &app_infos.platform);
     let split_app_id: Vec<&str> = app_infos.app_id.split(".").collect();
     info!("appinfo: {:?}", app_infos); //info!("appinfo: {:#?}", app_infos);
-    if let [owner, repo] = split_app_id.as_slice() {
-        info!(owner, repo);
+    if let [mut owner, mut repo] = split_app_id.as_slice() {
+        info!("Repository owner: {}, repo: {}", owner, repo);
+
         let mut latest_version = String::from("0.0.1");
         let mut url = String::from(
             "https://github.com/Sinotrade/scone/releases/download/0.0.1s/yvictor.scone_0.0.1.zip",
         );
         let mut session_key: Option<String> = None;
-        let mock_owner = if owner == &"yvictor" {
-            "sinotrade"
-        } else {
-            owner
-        };
-        let releases = list_releases(mock_owner, repo)
+        let mut checksum: Option<String> = None;
+        let releases = list_releases(owner, repo)
             .await
             .ok()
             .unwrap_or_default();
         for release in releases {
             info!(release.tag_name, release.name);
             if (app_infos.version_name == "builtin") | (app_infos.version_name < release.tag_name) {
-                for asset in release.assets {
-                    debug!(asset.name, asset.browser_download_url);
+                for asset in &release.assets {
+                    debug!("Asset name: {}, download URL: {}", asset.name, asset.browser_download_url);
                     if asset.name == "key" {
-                        let key = download_and_read_asset(&asset.browser_download_url).await;
-                        match key {
-                            Ok(k) => {
-                                session_key = Some(k);
-                            }
-                            Err(e) => error!("Error downloading and reading asset: {}", e),
+                        let key_data = download_and_read_asset(&asset.browser_download_url).await;
+                        match key_data {
+                            Ok(k) => session_key = Some(k.trim().to_string()),
+                            Err(e) => error!("Error downloading and reading key asset: {}", e),
                         }
-                        // session_key = reqwest.
                     } else if asset.name.ends_with(".zip") {
                         latest_version = release.tag_name.clone();
                         url = asset.browser_download_url.clone();
+                        let checksum_filename = asset.name.replace(".zip", ".checksum");
+                        if let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_filename) {
+                            debug!("Found checksum asset: {}", checksum_asset.browser_download_url);
+                            let checksum_data = download_and_read_asset(&checksum_asset.browser_download_url).await;
+                            match checksum_data {
+                                Ok(c) => checksum = Some(c.trim().to_string()),
+                                Err(e) => error!("Error downloading and reading checksum asset: {}", e),
+                            }
+                        } else {
+                            error!("Checksum asset '{}' not found for zip file '{}'", checksum_filename, asset.name);
+                        }
                     }
                 }
+                break;
             } else {
                 return None;
             }
-            break;
         }
         Some(UpdateInfo {
             version: latest_version.to_string(),
             url: url.to_string(),
-            session_key: session_key,
+            session_key,
+            checksum,
         })
     } else {
         return None;
