@@ -142,6 +142,10 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
     let split_app_id: Vec<&str> = app_infos.app_id.split(".").collect();
     info!("appinfo: {:?}", app_infos); //info!("appinfo: {:#?}", app_infos);
     if let [mut owner, mut repo] = split_app_id.as_slice() {
+
+        if repo == "scone" {
+            owner = "Sinotrade";
+        }
         info!("Repository owner: {}, repo: {}", owner, repo);
 
         let mut latest_version = String::from("0.0.1");
@@ -155,8 +159,8 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
             .ok()
             .unwrap_or_default();
         for release in releases {
-            info!(release.tag_name, release.name);
-            if (app_infos.version_name == "builtin") | (app_infos.version_name < release.tag_name) {
+            info!("Release Tag: {}, Release Name: {}", release.tag_name, release.name);
+            if (app_infos.version_name == "builtin") || (app_infos.version_name < release.tag_name) {
                 for asset in &release.assets {
                     debug!("Asset name: {}, download URL: {}", asset.name, asset.browser_download_url);
                     if asset.name == "key" {
@@ -187,8 +191,8 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
             }
         }
         Some(UpdateInfo {
-            version: latest_version.to_string(),
-            url: url.to_string(),
+            version: latest_version,
+            url: url,
             session_key,
             checksum,
         })
