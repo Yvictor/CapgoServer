@@ -140,9 +140,18 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
     // ];
     // let platform_latest_version = latest_versions.iter().find(|(p, _)| p == &app_infos.platform);
     let split_app_id: Vec<&str> = app_infos.app_id.split(".").collect();
-    info!("appinfo: {:?}", app_infos); //info!("appinfo: {:#?}", app_infos);
+
+    info!(
+        platform = app_infos.platform,
+        device_id = app_infos.device_id,
+        app_id = app_infos.app_id,
+        version_name = app_infos.version_name,
+        "Received app_infos data"
+    );
+
     if let [mut owner, mut repo] = split_app_id.as_slice() {
-        info!("Repository owner: {}, repo: {}", owner, repo);
+        owner = if repo == "scone" { "Sinotrade" } else { owner };
+        info!(owner = owner, repo = repo, "Resolved repository information");
 
         let mut latest_version = String::from("0.0.1");
         let mut url = String::from(
@@ -150,15 +159,17 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
         );
         let mut session_key: Option<String> = None;
         let mut checksum: Option<String> = None;
-        let releases = list_releases(owner, repo)
-            .await
-            .ok()
-            .unwrap_or_default();
+    
+        let releases = list_releases(owner, repo).await.ok().unwrap_or_default();
         for release in releases {
-            info!(release.tag_name, release.name);
-            if (app_infos.version_name == "builtin") | (app_infos.version_name < release.tag_name) {
+            info!(
+                tag_name = release.tag_name,
+                release_name = ?release.name,
+                "Processing release"
+            );
+
+            if (app_infos.version_name == "builtin") || (app_infos.version_name < release.tag_name) {
                 for asset in &release.assets {
-                    debug!("Asset name: {}, download URL: {}", asset.name, asset.browser_download_url);
                     if asset.name == "key" {
                         let key_data = download_and_read_asset(&asset.browser_download_url).await;
                         match key_data {
@@ -187,8 +198,8 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
             }
         }
         Some(UpdateInfo {
-            version: latest_version.to_string(),
-            url: url.to_string(),
+            version: latest_version,
+            url: url,
             session_key,
             checksum,
         })
