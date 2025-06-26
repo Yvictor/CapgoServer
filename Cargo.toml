@@ -15,3 +15,4 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
+semver = "1.0.26"

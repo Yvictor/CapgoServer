@@ -2,6 +2,7 @@ use poem_openapi::{payload::Json, ApiResponse, Object};
 use reqwest::{header, Error};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
+use semver::Version;
 
 #[derive(Debug, Deserialize)]
 pub struct Release {
@@ -159,7 +160,7 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
         );
         let mut session_key: Option<String> = None;
         let mut checksum: Option<String> = None;
-    
+
         let releases = list_releases(owner, repo).await.ok().unwrap_or_default();
         for release in releases {
             info!(
@@ -168,33 +169,46 @@ pub async fn get_update_info(app_infos: &AppInfos) -> Option<UpdateInfo> {
                 "Processing release"
             );
 
-            if (app_infos.version_name == "builtin") || (app_infos.version_name < release.tag_name) {
-                for asset in &release.assets {
-                    if asset.name == "key" {
-                        let key_data = download_and_read_asset(&asset.browser_download_url).await;
-                        match key_data {
-                            Ok(k) => session_key = Some(k.trim().to_string()),
-                            Err(e) => error!("Error downloading and reading key asset: {}", e),
-                        }
-                    } else if asset.name.ends_with(".zip") {
-                        latest_version = release.tag_name.clone();
-                        url = asset.browser_download_url.clone();
-                        let checksum_filename = asset.name.replace(".zip", ".checksum");
-                        if let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_filename) {
-                            debug!("Found checksum asset: {}", checksum_asset.browser_download_url);
-                            let checksum_data = download_and_read_asset(&checksum_asset.browser_download_url).await;
-                            match checksum_data {
-                                Ok(c) => checksum = Some(c.trim().to_string()),
-                                Err(e) => error!("Error downloading and reading checksum asset: {}", e),
+            const MOBILE_PREFIX: &str = "mobile-";
+            if let Some(version_str) = release.tag_name.strip_prefix(MOBILE_PREFIX) {
+
+                let client_version_res = Version::parse(&app_infos.version_name);
+                let release_version_res = Version::parse(version_str);
+
+                let needs_update = app_infos.version_name == "builtin" ||
+                                   match (&client_version_res, &release_version_res) {
+                                       (Ok(cv), Ok(rv)) => rv > cv,
+                                       _ => false
+                                   };
+
+                if needs_update {
+                    for asset in &release.assets {
+                        if asset.name == "key" {
+                            let key_data = download_and_read_asset(&asset.browser_download_url).await;
+                            match key_data {
+                                Ok(k) => session_key = Some(k.trim().to_string()),
+                                Err(e) => error!("Error downloading and reading key asset: {}", e),
                             }
-                        } else {
-                            error!("Checksum asset '{}' not found for zip file '{}'", checksum_filename, asset.name);
+                        } else if asset.name.ends_with(".zip") {
+                            latest_version = release.tag_name.clone();
+                            url = asset.browser_download_url.clone();
+                            let checksum_filename = asset.name.replace(".zip", ".checksum");
+                            if let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_filename) {
+                                debug!("Found checksum asset: {}", checksum_asset.browser_download_url);
+                                let checksum_data = download_and_read_asset(&checksum_asset.browser_download_url).await;
+                                match checksum_data {
+                                    Ok(c) => checksum = Some(c.trim().to_string()),
+                                    Err(e) => error!("Error downloading and reading checksum asset: {}", e),
+                                }
+                            } else {
+                                error!("Checksum asset '{}' not found for zip file '{}'", checksum_filename, asset.name);
+                            }
                         }
                     }
+                    break;
+                } else {
+                    return None;
                 }
-                break;
-            } else {
-                return None;
             }
         }
         Some(UpdateInfo {
